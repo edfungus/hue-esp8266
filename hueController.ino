@@ -1,12 +1,15 @@
 #include <ESP8266WiFi.h>
 #include "Encoder.h"
+#include "Button.h"
 #include "Secret.h"
 
 #define STEP 1
 #define HUE_HOST "192.168.1.1"
+#define onOffButtonPin 14
 
 Secret secret;
 Encoder briEncoder(5, 4, STEP);
+Button onOffButton(onOffButtonPin);
 WiFiClient client;
 
 void setup() {
@@ -18,8 +21,15 @@ void setup() {
 void loop() {
     if(briEncoder.getMovement() != 0){
         int mv = briEncoder.getMovement() * 10;
-        sendToHue(mv);
+        adjustHueBri(mv);
         briEncoder.clearMovement();
+    }
+    int state = onOffButton.check();
+    if (state == 1) {
+        onHue("true");
+    }
+    if (state == 2) {
+        onHue("false");
     }
 }
 
@@ -42,11 +52,20 @@ void setupEncoders() {
     briEncoder.setupPins(briInterrupt);
 }
 
-void sendToHue(int increment){
+void adjustHueBri(int increment){
+    String postData = "{\"bri_inc\":"+String(increment)+"}";
+    sendToHue(postData);
+}
+
+void onHue(String state){
+    String postData = "{\"on\":"+state+"}";
+    sendToHue(postData);
+}
+
+void sendToHue(String postData) {
     while (!client.connect(HUE_HOST, 80)) {
         Serial.println("Connecting to hue ... ");
     }
-    String postData = "{\"bri_inc\":"+String(increment)+"}";
 
     client.println("PUT /api/"+String(secret.getHueUsername())+"/groups/1/action HTTP/1.1");
     client.println("Host: " + String(HUE_HOST));
